@@ -5,18 +5,21 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "test_longtime_1000"
+        "name": "test_longtime_1500_final"
     },
     "model_params": {
-        "hidden_dim": 32,
-        "use_dropout": True,
+        "use_dropout": False,
+        "pred_size":8,
+        "tst_size":96,
+        "input_size":26,
+        "hidden_dim":256
     },
     "train_params": {
         "data_loader_params": {
             "batch_size": 128,
             "shuffle": True,
         },
-        "optim_params": {"lr": 0.001, },
+        "optim_params": {"lr": 0.000001},
         "device": "cpu",
         "epochs": 1000,
         "pbar": True,
