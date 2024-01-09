@@ -82,13 +82,34 @@ def evaluate(
     total_loss = total_loss/len(data_loader.dataset)
     return total_loss 
 
+def predict(model:nn.Module, dl:torch.utils.data.DataLoader) -> np.array:
+    with torch.inference_mode():
+        for x in dl:
+            x = x[0].cpu()
+            out = model(x)
+        out = np.concatenate([out[:,0], out[-1,1:]])
+    print(out.shape,len(out))
+    return out
+
+def dynamic_predict(model:nn.Module, t_data:TimeSeriesDataset, params:dict) -> list:
+    pred = []
+    x,out = t_data[len(t_data)]
+    with torch.inference_mode():
+        for _ in range(int(params['tst_size']/params['pred_size'])):
+            x = np.concatenate([x,out],dtype=np.float32)[-params['input_size']:]
+            x = torch.tensor(x)
+            out = model(x)
+            pred.append(out)
+            
+        pred = np.concatenate(pred)
+        print(pred)
+    return pred
+
 def main(args):
-    tst_size = 96
-    
     train_params = args.get("train_params")
     files_ = args.get("files")
     device = torch.device(train_params.get("device"))
-    model_params = args.get("model_params")
+    params = args.get("model_params")
     dl_params = train_params.get("data_loader_params")
     
     df = pd.read_csv("../../../../../estsoft/data/train.csv")
@@ -96,23 +117,28 @@ def main(args):
 
     ## make time-series dataset for input data
     df_prod, df_cons = get_time_series(df)
-    a = df_prod[-tst_size:]
-    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-tst_size], 26, 8)
-    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 8)
-    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-tst_size], 26, 8)
-    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 8)
+    a = df_prod[-params['tst_size']:]
+    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-params['tst_size']], 
+                                 params['input_size'], params['pred_size'])
+    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-params['tst_size']-params['input_size']:], 
+                                 params['input_size'], params['pred_size'])
+    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-params['tst_size']], 
+                                 params['input_size'], params['pred_size'])
+    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-params['tst_size']-params['input_size']:], 
+                                 params['input_size'], params['pred_size'])
     print(trn_prod[len(trn_prod)],len(trn_prod))
+    print(trn_prod[len(tst_prod)],len(tst_prod))
     trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
-    tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=96, shuffle=False)
+    tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=params['tst_size'], shuffle=False)
     trn_cons_dl = torch.utils.data.DataLoader(trn_cons, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
-    tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=96, shuffle=False)
+    tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=params['tst_size'], shuffle=False)
     
-    net = ANN(26,8,256).to(device)
+    net = ANN(params['input_size'],params['pred_size'],params['hidden_dim']).to(device)
     print(net)
     
-    optim = torch.optim.AdamW(net.parameters(), lr=0.000001)
+    optim = torch.optim.AdamW(net.parameters(), lr=train_params.get('optim_params').get('lr'))
     #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     #scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=1, eta_min=0.00001)
   
@@ -143,11 +169,7 @@ def main(args):
             #break
     
     net.eval()
-     
-    with torch.inference_mode():
-        for x in tst_prod_dl:
-            x = x[0].cpu()
-            out = net(x)
+    out = predict(net, tst_prod_dl)
 
     get_graph(history, files_.get("name")) 
     pred_prod = out.flatten()
@@ -165,20 +187,9 @@ def main(args):
     print('prod score : ',score_pr)
     print('cons score : ',score_co)
     
-    pred = []
-    x,out = trn_prod[len(trn_prod)]
-    with torch.inference_mode():
-        for _ in range(12):
-            x = np.concatenate([x,out],dtype=np.float32)[-26:]
-            x = torch.tensor(x)
-            out = net(x)
-            pred.append(out)
-            
-        pred = np.concatenate(pred)
+    out_dynamic = dynamic_predict(net, tst_prod, params)
+    get_r2_graph(out_dynamic, a.values, out_dynamic, a.values, 'step_test')
     
-    get_r2_graph(pred, a.values, pred, a.values, 'step_test')
-    
-
     print('------------------------------------------------------------------')
     if args.get("validation"):
         model = ANN(X_trn.shape[-1] ,model_params.get("hidden_dim")).to(device)
