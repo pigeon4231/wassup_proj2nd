@@ -83,9 +83,14 @@ def evaluate(
     return total_loss 
 
 def main(args):
-    patch_size, n_patch, n_token = 64, 4, 6
+    params = {
+        "tst_size" : 96,
+        "patch_size" : 96, 
+        "n_patch" : 4,
+        "n_token" : 6,
+        "hidden_dim": 128    
+    }
     window_size = int(patch_size * n_patch * n_token / 2)
-    tst_size = 96
     
     train_params = args.get("train_params")
     files_ = args.get("files")
@@ -99,11 +104,15 @@ def main(args):
     ## make time-series dataset for input data
     df_prod, df_cons = get_time_series(df)
     a = df_prod[-tst_size:]
-    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-tst_size], patch_size, n_token)
-    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-tst_size-window_size:], patch_size, n_token)
-    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-tst_size], patch_size, n_token)
-    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-tst_size-window_size:], patch_size, n_token)
-    #print(trn_prod[len(trn_prod)],len(trn_prod))
+    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-params["tst_size"]], 
+                                 params["patch_size"], params["n_token"])
+    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:], 
+                                 params["patch_size"], params["n_token"])
+    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-params["tst_size"]], 
+                                 params["patch_size"], params["n_token"])
+    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:], 
+                                 params["patch_size"], params["n_token"])
+
     trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
     tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=96, shuffle=False)
@@ -111,7 +120,7 @@ def main(args):
                                            shuffle=dl_params.get("shuffle"))
     tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=96, shuffle=False)
     
-    net = PatchTST(n_token, patch_size*n_patch, 128, 8, 4, patch_size).to(device)
+    net = PatchTST(params["n_token"], params["patch_size"]*params["n_patch"], params["hidden_dim"], 8, 4, params["patch_size"]).to(device)
     print(net)
     
     optim = torch.optim.AdamW(net.parameters(), lr=0.000001)
@@ -150,7 +159,7 @@ def main(args):
         for x in tst_prod_dl:
             x = x[0].cpu()
             out = net(x)
-    print(out)
+    out = np.concatenate([out[:,0], out[-1,1:]])
 
     get_graph(history, files_.get("name")) 
     pred_prod = out.flatten()
@@ -159,7 +168,7 @@ def main(args):
     print("Done!")
     torch.save(net.state_dict(), files_.get("output")+files_.get("name")+'.pth')
     # visualization model's performance
-    print('size:',pred_prod.shape,len(a.values))
+    print('size1 :',pred_prod.shape,len(a.values))
     get_r2_graph(pred_prod, a.values, pred_cons, a.values, files_.get("name"))
     pred_prod = torch.tensor(pred_prod)
     pred_cons = torch.tensor(pred_cons)
@@ -170,14 +179,13 @@ def main(args):
     
     pred = []
     x,out = trn_prod[len(trn_prod)]
-    print(x.shape,out.shape)
     with torch.inference_mode():
         x = torch.tensor(x)
         out = net(x)
         pred.append(out)
         
     pred = np.concatenate(pred)
-    
+    print(pred.shape,len(a.values))
     get_r2_graph(pred, a.values, pred, a.values, 'step_test')
 
     print('------------------------------------------------------------------')
