@@ -11,7 +11,7 @@ class TimeSeriesDataset(torch.utils.data.Dataset):
     self.data = ts
 
   def __len__(self):
-    return int((len(self.data) - self.window_size - self.forecast_size)/self.forecast_size)+1
+    return len(self.data) - self.window_size - self.forecast_size + 1
 
   def __getitem__(self, i):
     look_back = self.data[i:(i+self.window_size)] # 48
