@@ -97,10 +97,11 @@ def main(args):
     ## make time-series dataset for input data
     df_prod, df_cons = get_time_series(df)
     a = df_prod[-tst_size:]
-    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-tst_size], 26, 1)
-    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 1)
-    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-tst_size], 26, 1)
-    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 1)
+    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-tst_size], 26, 8)
+    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 8)
+    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-tst_size], 26, 8)
+    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-tst_size-26:], 26, 8)
+    print(trn_prod[len(trn_prod)],len(trn_prod))
     trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
     tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=96, shuffle=False)
@@ -108,10 +109,10 @@ def main(args):
                                            shuffle=dl_params.get("shuffle"))
     tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=96, shuffle=False)
     
-    net = ANN(26,1,256).to(device)
+    net = ANN(26,8,256).to(device)
     print(net)
     
-    optim = torch.optim.AdamW(net.parameters(), lr=0.00001)
+    optim = torch.optim.AdamW(net.parameters(), lr=0.000001)
     #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     #scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=1, eta_min=0.00001)
   
@@ -142,7 +143,6 @@ def main(args):
             #break
     
     net.eval()
-    pred = []
      
     with torch.inference_mode():
         for x in tst_prod_dl:
@@ -150,12 +150,13 @@ def main(args):
             out = net(x)
 
     get_graph(history, files_.get("name")) 
-    pred_prod = out
-    pred_cons = out
+    pred_prod = out.flatten()
+    pred_cons = out.flatten()
  
     print("Done!")
     torch.save(net.state_dict(), files_.get("output")+files_.get("name")+'.pth')
     # visualization model's performance
+    print('size:',pred_prod.shape,len(a.values))
     get_r2_graph(pred_prod, a.values, pred_cons, a.values, files_.get("name"))
     pred_prod = torch.tensor(pred_prod)
     pred_cons = torch.tensor(pred_cons)
@@ -163,6 +164,20 @@ def main(args):
     score_co = metric(pred_cons, a.values)
     print('prod score : ',score_pr)
     print('cons score : ',score_co)
+    
+    pred = []
+    x,out = trn_prod[len(trn_prod)]
+    with torch.inference_mode():
+        for _ in range(12):
+            x = np.concatenate([x,out],dtype=np.float32)[-26:]
+            x = torch.tensor(x)
+            out = net(x)
+            pred.append(out)
+            
+        pred = np.concatenate(pred)
+    
+    get_r2_graph(pred, a.values, pred, a.values, 'step_test')
+    
 
     print('------------------------------------------------------------------')
     if args.get("validation"):
