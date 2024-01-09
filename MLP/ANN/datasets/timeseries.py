@@ -13,9 +13,9 @@ class TimeSeriesDataset(torch.utils.data.Dataset):
     self.data = new_ts
 
   def __len__(self):
-    return len(self.data) - self.window_size - self.forecast_size + 1
+    return int((len(self.data) - self.window_size - self.forecast_size)/self.forecast_size)+1
 
   def __getitem__(self, i):
-    x = self.data[i:(i+self.window_size)]
-    y = self.data[(i+self.window_size):(i+self.window_size+self.forecast_size)]
+    x = self.data[i*8:(i*8+self.window_size)]
+    y = self.data[(i*8+self.window_size):(i*8+self.window_size+self.forecast_size)]
     return x, y

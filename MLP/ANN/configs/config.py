@@ -5,7 +5,7 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "test"
+        "name": "test_longtime_1700"
     },
     "model_params": {
         "hidden_dim": 32,
@@ -18,7 +18,7 @@ config = {
         },
         "optim_params": {"lr": 0.001, },
         "device": "cpu",
-        "epochs": 300,
+        "epochs": 1700,
         "pbar": True,
         "min_delta": 0,
         "patience": 150,
