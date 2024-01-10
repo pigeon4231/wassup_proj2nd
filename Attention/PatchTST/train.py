@@ -11,7 +11,7 @@ from datasets.dataset import get_time_series
 from metric.metric import metric
 from metric.visualization import get_r2_graph, get_graph
 from nn.model import PatchTST
-from datasets.timeseries import TimeSeriesDataset
+from datasets.timeseries import PatchTSDataset
 from torch.utils.data import DataLoader
 from typing import Optional
 from tqdm.auto import tqdm
@@ -85,12 +85,14 @@ def evaluate(
 def main(args):
     params = {
         "tst_size" : 96,
-        "patch_size" : 96, 
-        "n_patch" : 4,
-        "n_token" : 6,
-        "hidden_dim": 128    
+        "patch_size" : 16, 
+        "n_patch" : 64,    #시간 단위?
+        "hidden_dim": 128,
+        "prediction_size": 96,
+        "head_num":32,
+        "layer_num":8
     }
-    window_size = int(patch_size * n_patch * n_token / 2)
+    window_size = int(params["patch_size"]*params["n_patch"]/2)
     
     train_params = args.get("train_params")
     files_ = args.get("files")
@@ -103,27 +105,28 @@ def main(args):
 
     ## make time-series dataset for input data
     df_prod, df_cons = get_time_series(df)
-    a = df_prod[-tst_size:]
-    trn_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[:-params["tst_size"]], 
-                                 params["patch_size"], params["n_token"])
-    tst_prod = TimeSeriesDataset(df_prod.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:], 
-                                 params["patch_size"], params["n_token"])
-    trn_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[:-params["tst_size"]], 
-                                 params["patch_size"], params["n_token"])
-    tst_cons = TimeSeriesDataset(df_cons.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:], 
-                                 params["patch_size"], params["n_token"])
+    a = df_prod[-params["tst_size"]:]
+    trn_prod = PatchTSDataset(df_prod.to_numpy(dtype=np.float32)[:-params["tst_size"]],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    tst_prod = PatchTSDataset(df_prod.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    trn_cons = PatchTSDataset(df_cons.to_numpy(dtype=np.float32)[:-params["tst_size"]],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    tst_cons = PatchTSDataset(df_cons.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
 
-    trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"), 
+    trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"),
                                            shuffle=dl_params.get("shuffle"))
     tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=96, shuffle=False)
     trn_cons_dl = torch.utils.data.DataLoader(trn_cons, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
     tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=96, shuffle=False)
     
-    net = PatchTST(params["n_token"], params["patch_size"]*params["n_patch"], params["hidden_dim"], 8, 4, params["patch_size"]).to(device)
+    net = PatchTST(params["n_patch"], params["patch_size"], params["hidden_dim"], 
+                   params["head_num"], params["layer_num"], params["prediction_size"]).to(device)
     print(net)
     
-    optim = torch.optim.AdamW(net.parameters(), lr=0.000001)
+    optim = torch.optim.AdamW(net.parameters(), lr=train_params.get('optim_params').get('lr'))
     #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     #scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=1, eta_min=0.00001)
   
@@ -157,8 +160,8 @@ def main(args):
      
     with torch.inference_mode():
         for x in tst_prod_dl:
-            x = x[0].cpu()
-            out = net(x)
+            x = x[0].to(device)
+            out = net(x).detach().cpu().numpy()
     out = np.concatenate([out[:,0], out[-1,1:]])
 
     get_graph(history, files_.get("name")) 
@@ -180,8 +183,8 @@ def main(args):
     pred = []
     x,out = trn_prod[len(trn_prod)]
     with torch.inference_mode():
-        x = torch.tensor(x)
-        out = net(x)
+        x = torch.tensor(x).to(device)
+        out = net(x).detach().cpu().numpy()
         pred.append(out)
         
     pred = np.concatenate(pred)
