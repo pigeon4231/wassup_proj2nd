@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 
 class PatchTST(nn.Module):
-    def __init__(self, n_token, input_dim, model_dim, num_heads, num_layers, output_dim):
+    def __init__(self, n_token, input_dim, model_dim, num_heads, num_layers, output_dim, dim_feedforward=256):
         super(PatchTST, self).__init__()
         self.patch_embedding = nn.Linear(input_dim, model_dim)    # Input Embedding
         self._pos = torch.nn.Parameter(torch.randn(1,1,model_dim))  # Positional Embedding
 
-        encoder_layers = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, batch_first=True)
+        encoder_layers = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, 
+                                                    dim_feedforward=dim_feedforward, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=num_layers)
 
         self.output_layer = nn.Linear(model_dim * n_token, output_dim)
