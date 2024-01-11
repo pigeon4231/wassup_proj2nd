@@ -89,7 +89,7 @@ def main(args):
         "n_patch" : 64,    #시간 단위?
         "hidden_dim": 128,
         "prediction_size": 96,
-        "head_num":32,
+        "head_num":16,
         "layer_num":8
     }
     window_size = int(params["patch_size"]*params["n_patch"]/2)
