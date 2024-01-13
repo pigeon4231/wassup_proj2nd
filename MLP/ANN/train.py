@@ -19,9 +19,10 @@ from eval.validation import *
 from tqdm.auto import tqdm 
 from util.earlystop import EarlyStopper
 #from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
-
 import warnings
 warnings.filterwarnings('ignore')
+
+torch.manual_seed(42)
 
 device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
@@ -111,6 +112,7 @@ def dynamic_predict(model:nn.Module, t_data:TimeSeriesDataset, params:dict) -> l
         for _ in range(int(params['tst_size']/params['pred_size'])):
             x = np.concatenate([x,out],dtype=np.float32)[-input_size:]
             x = torch.tensor(x).cpu()
+            x = x.reshape(1,-1)
             out = model(x).detach().cpu().numpy()
             pred.append(out)         
         pred = np.concatenate(pred)
@@ -183,15 +185,15 @@ def main(args):
         print('Task{} {}!'.format(i+1,net))
         early_stopper = EarlyStopper(train_params.get("patience") ,train_params.get("min_delta"))
         optim = torch.optim.AdamW(nets[net].parameters(), lr=train_params.get('optim_params').get('lr'))
-        #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-        #scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=1, eta_min=0.00001)
+        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.0000001)
         if train_params.get("pbar"):
             pbar = tqdm(pbar)
         for _ in pbar:
             
             loss = train(nets[net], nn.MSELoss(), optim, trn_dl, device)
             history['lr'].append(optim.param_groups[0]['lr'])
-            #scheduler.step(loss)
+            if args.get("scheduler"):
+                scheduler.step(loss)
             history['trn_loss'].append(loss)
             loss_val = evaluate(nets[net], nn.MSELoss(), tst_dl, device) 
             history['val_loss'].append(loss_val)
@@ -212,17 +214,18 @@ def main(args):
             nets[net].load_state_dict(torch.load(files_.get("output")+files_.get("name")+'_earlystop.pth'))
         else:
             nets[net].load_state_dict(torch.load(files_.get("output")+str(i)+files_.get("name")+'.pth'))
-            nets[net].eval()
+        
+        nets[net].eval()
             
         # visualization model's performance
         out_dynamic = dynamic_predict(nets[net], tst, params)
-        pred_dynamic = out_dynamic.flatten()
+        pred_dynamic = out_dynamic.squeeze(0)
         pred_dynamic = torch.tensor(pred_dynamic)
         val_score = metric(pred, real)
         pred_score = metric(pred_dynamic, real)
         print('val score : ',val_score)
         print('pred score : ',pred_score)
-        get_r2_graph(out_dynamic, real, pred, real, str(i)+'_'+files_.get("name"))
+        get_r2_graph(pred_dynamic, real, pred, real, str(i)+'_'+files_.get("name"))
     print('------------------------------------------------------------------')
     if args.get("validation"):
         model = ANN(X_trn.shape[-1] ,model_params.get("hidden_dim")).to(device)

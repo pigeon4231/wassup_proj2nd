@@ -10,18 +10,20 @@ from torch import nn
 from datasets.dataset import get_time_series
 from metric.metric import metric
 from metric.visualization import get_r2_graph, get_graph
-from nn.model import PatchTST
+from nn.model import PatchTST, PatchSRT
 from datasets.timeseries import PatchTSDataset
 from torch.utils.data import DataLoader
 from typing import Optional
 from tqdm.auto import tqdm
 from eval.validation import *
 from tqdm.auto import tqdm 
-#from nn.early_stop import EarlyStopper
+from util.earlystop import EarlyStopper
 #from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 
 import warnings
 warnings.filterwarnings('ignore')
+
+torch.manual_seed(42)
 
 device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
@@ -82,115 +84,139 @@ def evaluate(
     total_loss = total_loss/len(data_loader.dataset)
     return total_loss 
 
+def predict(model:nn.Module, dl:torch.utils.data.DataLoader, device) -> np.array:
+    with torch.inference_mode():
+        for x in dl:
+            x = x[0].to(device)
+            out = model(x).detach().cpu().numpy()
+        out = np.concatenate([out[:,0], out[-1,1:]])
+
+    return out
+
+def dynamic_predict(model:nn.Module, t_data:PatchTSDataset, params:dict, device) -> list:
+    pred = []
+    x,out = t_data[len(t_data)]
+    with torch.inference_mode():
+        x = torch.tensor(x).to(device)
+        out = model(x).detach().cpu().numpy()
+        pred.append(out)
+        
+    return pred
+
 def main(args):
-    params = {
-        "tst_size" : 96,
-        "patch_size" : 16, 
-        "n_patch" : 64,    #시간 단위?
-        "hidden_dim": 128,
-        "prediction_size": 96,
-        "head_num":16,
-        "layer_num":8
-    }
-    window_size = int(params["patch_size"]*params["n_patch"]/2)
-    
     train_params = args.get("train_params")
     files_ = args.get("files")
     device = torch.device(train_params.get("device"))
-    model_params = args.get("model_params")
+    params = args.get("model_params")
     dl_params = train_params.get("data_loader_params")
+    window_size = int(params["patch_size"]*params["n_patch"]/2)
     
     df = pd.read_csv("../../../../../estsoft/data/train.csv")
     df['datetime'] = pd.to_datetime(df['datetime'])
 
     ## make time-series dataset for input data
-    df_prod, df_cons = get_time_series(df)
-    a = df_prod[-params["tst_size"]:]
-    trn_prod = PatchTSDataset(df_prod.to_numpy(dtype=np.float32)[:-params["tst_size"]],
-                                 params["patch_size"], params["n_patch"], params["prediction_size"])
-    tst_prod = PatchTSDataset(df_prod.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
-                                 params["patch_size"], params["n_patch"], params["prediction_size"])
-    trn_cons = PatchTSDataset(df_cons.to_numpy(dtype=np.float32)[:-params["tst_size"]],
-                                 params["patch_size"], params["n_patch"], params["prediction_size"])
-    tst_cons = PatchTSDataset(df_cons.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
-                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    df_pc, df_main = get_time_series(df)
+    
+    # real trarget data to make graph
+    real = df_main[-params['tst_size']:].values 
 
-    trn_prod_dl = torch.utils.data.DataLoader(trn_prod, batch_size=dl_params.get("batch_size"),
+    trn_pc = PatchTSDataset(df_pc.to_numpy(dtype=np.float32)[:-params["tst_size"]],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    tst_pc = PatchTSDataset(df_pc.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    trn_main = PatchTSDataset(df_main.to_numpy(dtype=np.float32)[:-params["tst_size"]],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+    tst_main = PatchTSDataset(df_main.to_numpy(dtype=np.float32)[-params["tst_size"]-window_size:],
+                                 params["patch_size"], params["n_patch"], params["prediction_size"])
+ 
+    trn_pc_dl = torch.utils.data.DataLoader(trn_pc, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
-    tst_prod_dl = torch.utils.data.DataLoader(tst_prod, batch_size=96, shuffle=False)
-    trn_cons_dl = torch.utils.data.DataLoader(trn_cons, batch_size=dl_params.get("batch_size"), 
+    tst_pc_dl = torch.utils.data.DataLoader(tst_pc, batch_size=params['tst_size'], shuffle=False)
+    trn_main_dl = torch.utils.data.DataLoader(trn_main, batch_size=dl_params.get("batch_size"), 
                                            shuffle=dl_params.get("shuffle"))
-    tst_cons_dl = torch.utils.data.DataLoader(tst_cons, batch_size=96, shuffle=False)
+    tst_main_dl = torch.utils.data.DataLoader(tst_main, batch_size=params['tst_size'], shuffle=False)
+
+    nets = {
+        "multi_channel":[],
+        "nomal":[],
+        "resnet":[]
+    }
+    if args.get("nomal"):
+        nets['nomal'] = (PatchTST(params["n_patch"], params["patch_size"], params["hidden_dim"], 
+                   params["head_num"], params["layer_num"], params["prediction_size"]).to(device))
+    if args.get("resnet"):
+        nets['resnet'] = (PatchSRT(params["n_patch"], params["patch_size"], params["hidden_dim"], 
+                   params["head_num"], params["layer_num"], params["prediction_size"]).to(device))
+    print(nets.values())
     
-    net = PatchTST(params["n_patch"], params["patch_size"], params["hidden_dim"], 
-                   params["head_num"], params["layer_num"], params["prediction_size"]).to(device)
-    print(net)
-    
-    optim = torch.optim.AdamW(net.parameters(), lr=train_params.get('optim_params').get('lr'))
-    #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    #scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=1, eta_min=0.00001)
-  
     history = {
         'trn_loss':[],
         'val_loss':[],
         'lr':[]
     }
-    print('learning start!')
-    print('Task 1')
+    
     if args.get("train"):
         pbar = range(train_params.get("epochs"))
-    if train_params.get("pbar"):
-        pbar = tqdm(pbar)
     
     print("Learning Start!")
-    #early_stopper = EarlyStopper(args.patience ,args.min_delta)
-    for _ in pbar:
-        loss = train(net, nn.MSELoss(), optim, trn_prod_dl, device)
-        history['lr'].append(optim.param_groups[0]['lr'])
-        #scheduler.step(loss)
-        history['trn_loss'].append(loss)
-        loss_val = evaluate(net, nn.MSELoss(), tst_prod_dl, device) 
-        history['val_loss'].append(loss_val)
-        pbar.set_postfix(trn_loss=loss,val_loss=loss_val)
-        #if early_stopper.early_stop(model, loss, args.output+args.name+'_earlystop.pth'):
-            #print('Early Stopper run!')            
-            #break
-    
-    net.eval()
-     
-    with torch.inference_mode():
-        for x in tst_prod_dl:
-            x = x[0].to(device)
-            out = net(x).detach().cpu().numpy()
-    out = np.concatenate([out[:,0], out[-1,1:]])
+    for i,net in enumerate(nets):
+        if nets[net] and net in ['nomal','resnet']:
+            trn_dl = trn_main_dl
+            tst_dl = tst_main_dl
+            tst = tst_main
+        elif nets[net] and net == 'multi_channel':
+            trn_dl = trn_pc_dl
+            tst_dl = tst_pc_dl
+            tst = tst_pc
+        else:
+            continue
+        print('Task{} {}!'.format(i+1,net))
+        early_stopper = EarlyStopper(train_params.get("patience") ,train_params.get("min_delta"))
+        optim = torch.optim.AdamW(nets[net].parameters(), lr=train_params.get('optim_params').get('lr'))
+        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.000001)
+        if train_params.get("pbar"):
+            pbar = tqdm(pbar)
+        for _ in pbar:
+            loss = train(nets[net], nn.MSELoss(), optim, trn_dl, device)
+            history['lr'].append(optim.param_groups[0]['lr'])
+            if args.get("scheduler"):
+                scheduler.step(loss)
+            history['trn_loss'].append(loss)
+            loss_val = evaluate(nets[net], nn.MSELoss(), tst_dl, device) 
+            history['val_loss'].append(loss_val)
+            pbar.set_postfix(trn_loss=loss,val_loss=loss_val)
+            if early_stopper.early_stop(nets[net], loss_val, files_.get("output")+files_.get("name")+'_earlystop.pth', 
+                                        train_params.get("early_stop")):           
+                break
+            
+        nets[net].eval()
+        out = predict(nets[net], tst_dl, device)
 
-    get_graph(history, files_.get("name")) 
-    pred_prod = out.flatten()
-    pred_cons = out.flatten()
- 
-    print("Done!")
-    torch.save(net.state_dict(), files_.get("output")+files_.get("name")+'.pth')
-    # visualization model's performance
-    print('size1 :',pred_prod.shape,len(a.values))
-    get_r2_graph(pred_prod, a.values, pred_cons, a.values, files_.get("name"))
-    pred_prod = torch.tensor(pred_prod)
-    pred_cons = torch.tensor(pred_cons)
-    score_pr = metric(pred_prod, a.values)
-    score_co = metric(pred_cons, a.values)
-    print('prod score : ',score_pr)
-    print('cons score : ',score_co)
-    
-    pred = []
-    x,out = trn_prod[len(trn_prod)]
-    with torch.inference_mode():
-        x = torch.tensor(x).to(device)
-        out = net(x).detach().cpu().numpy()
-        pred.append(out)
+        get_graph(history, files_.get("name")) 
+        pred = out.flatten()
+        pred = torch.tensor(pred)
+        print("Done!")
+        torch.save(nets[net].state_dict(), files_.get("output")+str(i)+files_.get("name")+'.pth')
+        if torch.load(files_.get("output")+files_.get("name")+'_earlystop.pth'):
+            nets[net].load_state_dict(torch.load(files_.get("output")+files_.get("name")+'_earlystop.pth'))
+        else:
+            nets[net].load_state_dict(torch.load(files_.get("output")+str(i)+files_.get("name")+'.pth'))
         
-    pred = np.concatenate(pred)
-    print(pred.shape,len(a.values))
-    get_r2_graph(pred, a.values, pred, a.values, 'step_test')
-
+        nets[net].eval()
+        score_list = []
+        # visualization model's performance
+        out_dynamic = dynamic_predict(nets[net], tst, params, device)
+        pred_dynamic = np.concatenate(out_dynamic)
+        pred_dynamic = torch.tensor(out_dynamic).reshape(params["prediction_size"])
+        val_score = metric(pred, real)
+        print(pred_dynamic.shape, real.shape)
+        pred_score = metric(pred_dynamic, real)
+        # score save
+        score_list.append([val_score,pred_score])
+        torch.save(score_list, files_.get("output")+str(i)+files_.get("name")+'.pth')
+        print('pred score : ',val_score)
+        print('dynamic score : ',pred_score)
+        get_r2_graph(pred_dynamic, real, pred, real, str(i)+'_'+files_.get("name"))
     print('------------------------------------------------------------------')
     if args.get("validation"):
         model = ANN(X_trn.shape[-1] ,model_params.get("hidden_dim")).to(device)
@@ -198,7 +224,7 @@ def main(args):
         scores = pd.DataFrame(scores.kfold(model, n_splits=5, epochs=train_params.get("epochs"), lr=opt_params.get("lr"), 
                                         batch=dl_params.get("batch_size"), shuffle=True, random_state=2023))
         print(pd.concat([scores, scores.apply(['mean', 'std'])]))
-
+        
         return
 
 def get_args_parser(add_help=True):
