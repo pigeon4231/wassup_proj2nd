@@ -5,7 +5,7 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "2000_elu_96step_2hidden_early"
+        "name": "1000_elu_96step_2hidden_early_scheduler"
     },
     "model_params": {
         "use_dropout": False,
@@ -20,9 +20,9 @@ config = {
             "batch_size": 128,
             "shuffle": True,
         },
-        "optim_params": {"lr": 0.000001},   #0.0000001
+        "optim_params": {"lr": 0.0001},   #0.0000001
         "device": "cuda",
-        "epochs": 2000,
+        "epochs": 1000,
         "pbar": True,
         "min_delta": 0,
         "patience": 5,
@@ -30,6 +30,7 @@ config = {
     },
     "train": True,
     "validation": False,
+    "scheduler": True, 
     "nomal": True,
     "multi": True,
     "resnet": True
