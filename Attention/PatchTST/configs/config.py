@@ -5,7 +5,7 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "10epoch"
+        "name": "10epoch_32head"
     },
     "model_params": {
         "tst_size" : 96,
@@ -13,7 +13,7 @@ config = {
         "n_patch" : 64,    #시간 단위?
         "hidden_dim": 128,
         "prediction_size": 96,
-        "head_num":16,
+        "head_num":32,
         "layer_num":8
     },
     "train_params": {
