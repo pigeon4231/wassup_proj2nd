@@ -213,7 +213,6 @@ def main(args):
         pred_score = metric(pred_dynamic, real)
         # score save
         score_list.append([val_score,pred_score])
-        torch.save(score_list, files_.get("output")+str(i)+files_.get("name")+'.pth')
         print('pred score : ',val_score)
         print('dynamic score : ',pred_score)
         get_r2_graph(pred_dynamic, real, pred, real, str(i)+'_'+files_.get("name"))

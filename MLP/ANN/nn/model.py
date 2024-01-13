@@ -107,7 +107,6 @@ class RestNN(nn.Module):
       nn.BatchNorm1d(hidden*2),
       nn.ELU(),
       nn.Linear(hidden*2,input),
-      
       nn.ELU()
     )
     self.fc_layer = nn.Sequential(
