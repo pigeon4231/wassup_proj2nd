@@ -87,7 +87,7 @@ def evaluate(
     total_loss = total_loss/len(data_loader.dataset)
     return total_loss 
 
-def predict(model:nn.Module, dl:torch.utils.data.DataLoader) -> np.array:
+def predict(model:nn.Module, dl:torch.utils.data.DataLoader, device) -> np.array:
     with torch.inference_mode():
         for x in dl:
             x = x[0].to(device)
@@ -203,7 +203,7 @@ def main(args):
                 break
             
         nets[net].eval()
-        out = predict(nets[net], tst_dl)
+        out = predict(nets[net], tst_dl, device)
 
         get_graph(history, files_.get("name")) 
         pred = out.flatten()
