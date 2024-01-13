@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def fill_null(df:pd.DataFrame):
     df_fill = pd.DataFrame()
@@ -21,3 +22,10 @@ def fill_null(df:pd.DataFrame):
 
     df = pd.concat([df, df_fill]).reset_index(drop=True).sort_values(by='datetime')
     return df
+
+def make_target(prod:pd.DataFrame, cons:pd.DataFrame) -> np.array:
+    prod_target = prod.target
+    cons_target = cons.target
+    target = prod_target.values-cons_target.values
+    
+    return target
