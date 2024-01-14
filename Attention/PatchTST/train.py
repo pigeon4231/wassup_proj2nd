@@ -178,12 +178,12 @@ def main(args):
         if train_params.get("pbar"):
             pbar = tqdm(pbar)
         for _ in pbar:
-            loss = train(nets[net], nn.MSELoss(), optim, trn_dl, device)
+            loss = train(nets[net], nn.HuberLoss(), optim, trn_dl, device)
             history['lr'].append(optim.param_groups[0]['lr'])
             if args.get("scheduler"):
                 scheduler.step(loss)
             history['trn_loss'].append(loss)
-            loss_val = evaluate(nets[net], nn.MSELoss(), tst_dl, device) 
+            loss_val = evaluate(nets[net], nn.HuberLoss(), tst_dl, device) 
             history['val_loss'].append(loss_val)
             pbar.set_postfix(trn_loss=loss,val_loss=loss_val)
             if early_stopper.early_stop(nets[net], loss_val, files_.get("output")+files_.get("name")+'_earlystop.pth', 
