@@ -39,7 +39,7 @@ class PatchSRT(nn.Module):
         self.output_layer = nn.Linear(model_dim, input_dim)
         
         # residual learning block
-        self.activation = nn.LeakyReLU()
+        self.activation = nn.PReLU()
         self.res_layer_1 = nn.Linear(input_dim, model_dim*2)
         self.res_layer_2 = nn.Linear(model_dim*2, model_dim*2)
         self.fc_layer = nn.Linear(model_dim*2*n_token, output_dim)

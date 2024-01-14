@@ -100,21 +100,23 @@ def predict(model:nn.Module, dl:torch.utils.data.DataLoader, device) -> np.array
 
 def dynamic_predict(model:nn.Module, t_data:TimeSeriesDataset, params:dict) -> list:
     pred = []
-    x,out = t_data[len(t_data)]
+    x,out = t_data[len(t_data)+params['pred_size']-1]
     model = model.cpu()
-    if out.ndim >= 2:
+    if x.ndim >= 2:
         input_size = params['input_size']*params['channel_num']
-        out = out.reshape(-1)
-        x = x.reshape(-1)
+        #out = out.reshape(-1)
+        #x = x.reshape(-1)
     else:
         input_size = params['input_size']
     with torch.inference_mode():
         for _ in range(int(params['tst_size']/params['pred_size'])):
+            x = x.reshape(-1)
+            out = out.reshape(-1)
             x = np.concatenate([x,out],dtype=np.float32)[-input_size:]
             x = torch.tensor(x).cpu()
             x = x.reshape(1,-1)
             out = model(x).detach().cpu().numpy()
-            pred.append(out)         
+            pred.append(out) 
         pred = np.concatenate(pred)
         
     return pred
@@ -175,17 +177,17 @@ def main(args):
         if nets[net] and net in ['nomal','resnet']:
             trn_dl = trn_main_dl
             tst_dl = tst_main_dl
-            tst = tst_main
+            tst = trn_main
         elif nets[net] and net == 'multi_channel':
             trn_dl = trn_pc_dl
             tst_dl = tst_pc_dl
-            tst = tst_pc
+            tst = trn_pc
         else:
             continue
         print('Task{} {}!'.format(i+1,net))
         early_stopper = EarlyStopper(train_params.get("patience") ,train_params.get("min_delta"))
         optim = torch.optim.AdamW(nets[net].parameters(), lr=train_params.get('optim_params').get('lr'))
-        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.0000001)
+        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.00000001)
         if train_params.get("pbar"):
             pbar = tqdm(pbar)
         for _ in pbar:
@@ -219,8 +221,8 @@ def main(args):
             
         # visualization model's performance
         out_dynamic = dynamic_predict(nets[net], tst, params)
-        pred_dynamic = out_dynamic.squeeze(0)
-        pred_dynamic = torch.tensor(pred_dynamic)
+        out_dynamic = np.concatenate(out_dynamic)
+        pred_dynamic = torch.tensor(out_dynamic)
         val_score = metric(pred, real)
         pred_score = metric(pred_dynamic, real)
         print('val score : ',val_score)

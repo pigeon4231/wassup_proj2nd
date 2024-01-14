@@ -5,15 +5,15 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "10epoch"
+        "name": "100epoch_256hiddendim_prelu"
     },
     "model_params": {
         "tst_size" : 96,
         "patch_size" : 16, 
         "n_patch" : 64,    #시간 단위?
-        "hidden_dim": 128,
+        "hidden_dim": 256,
         "prediction_size": 96,
-        "head_num":16,
+        "head_num":32,
         "layer_num":8
     },
     "train_params": {
@@ -22,8 +22,8 @@ config = {
             "shuffle": True,
         },
         "optim_params": {"lr": 0.0001},   #0.0000001
-        "device": "cpu",
-        "epochs": 10,
+        "device": "cuda",
+        "epochs": 100,
         "pbar": True,
         "min_delta": 0,
         "patience": 5,
