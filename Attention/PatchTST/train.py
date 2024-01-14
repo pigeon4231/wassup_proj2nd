@@ -95,7 +95,8 @@ def predict(model:nn.Module, dl:torch.utils.data.DataLoader, device) -> np.array
 
 def dynamic_predict(model:nn.Module, t_data:PatchTSDataset, params:dict, device) -> list:
     pred = []
-    x,out = t_data[len(t_data)]
+    x,out = t_data[len(t_data)+params['prediction_size']-1]
+    print(x.shape,out.shape)
     with torch.inference_mode():
         x = torch.tensor(x).to(device)
         out = model(x).detach().cpu().numpy()
@@ -163,11 +164,11 @@ def main(args):
         if nets[net] and net in ['nomal','resnet']:
             trn_dl = trn_main_dl
             tst_dl = tst_main_dl
-            tst = tst_main
+            tst = trn_main
         elif nets[net] and net == 'multi_channel':
             trn_dl = trn_pc_dl
             tst_dl = tst_pc_dl
-            tst = tst_pc
+            tst = trn_pc
         else:
             continue
         print('Task{} {}!'.format(i+1,net))
