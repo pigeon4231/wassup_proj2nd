@@ -1,7 +1,13 @@
 import pandas as pd
+import numpy as np
 
-def fill_null(df:pd.DataFrame, time_before:list, time:list, time_after:list):
+def fill_null(df:pd.DataFrame):
     df_fill = pd.DataFrame()
+    
+    time_before = ['2022-10-30 02:00:00', '2022-03-27 02:00:00', '2023-03-26 02:00:00', '2021-10-31 02:00:00']
+    time = ['2022-10-30 03:00:00', '2022-03-27 03:00:00', '2023-03-26 03:00:00', '2021-10-31 03:00:00']
+    time_after = ['2022-10-30 04:00:00', '2022-03-27 04:00:00', '2023-03-26 04:00:00', '2021-10-31 04:00:00']
+    
     for i in range(len(time_before)):
         df_null = df[df['datetime']==time[i]]
         df_concat = pd.concat([df[df['datetime']==time_before[i]], df[df['datetime']==time_after[i]]])
@@ -16,3 +22,10 @@ def fill_null(df:pd.DataFrame, time_before:list, time:list, time_after:list):
 
     df = pd.concat([df, df_fill]).reset_index(drop=True).sort_values(by='datetime')
     return df
+
+def make_target(prod:pd.DataFrame, cons:pd.DataFrame) -> np.array:
+    prod_target = prod.target
+    cons_target = cons.target
+    target = prod_target.values-cons_target.values
+    
+    return target

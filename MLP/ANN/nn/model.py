@@ -15,17 +15,17 @@ class ANN(nn.Module):
   def __init__(self, input:int=26, output:int=1, hidden:int=64):
     super().__init__()
     self.linear_stack = nn.Sequential(
-        nn.Linear(input,hidden),      #(18,32)
-        nn.BatchNorm1d(hidden),
-        nn.ELU(),
-        #nn.Dropout(0.3),
-        nn.Linear(hidden,hidden*2),   #(32,64)
+        nn.Linear(input,hidden*2),      #(18,32)
         nn.BatchNorm1d(hidden*2),
-        nn.ELU(),
+        nn.PReLU(),
         #nn.Dropout(0.3),
-        nn.Linear(hidden*2,hidden*2),   #(32,64)
+        nn.Linear(hidden*2,hidden*4),   #(32,64)
+        nn.BatchNorm1d(hidden*4),
+        nn.PReLU(),
+        #nn.Dropout(0.3),
+        nn.Linear(hidden*4,hidden*2),   #(32,64)
         nn.BatchNorm1d(hidden*2),
-        nn.ELU(),
+        nn.PReLU(),
         #nn.Dropout(0.3),     
         #nn.Dropout(0.3),
         nn.Linear(hidden*2,output),        #(128,1)
@@ -49,17 +49,17 @@ class MultitaskNN(nn.Module):
   def __init__(self, input:int=26, output:int=2, hidden:int=64, channel_num=3):
     super().__init__()
     self.linear_stack = nn.Sequential(
-        nn.Linear(input*channel_num, hidden),      #(18,32)
-        nn.BatchNorm1d(hidden),
-        nn.ELU(),
-        #nn.Dropout(0.3),
-        nn.Linear(hidden,hidden*2),   #(32,64)
+        nn.Linear(input*channel_num,hidden*2),      #(18,32)
         nn.BatchNorm1d(hidden*2),
-        nn.ELU(),
+        nn.PReLU(),
         #nn.Dropout(0.3),
-        nn.Linear(hidden*2,hidden*2),   #(32,64)
+        nn.Linear(hidden*2,hidden*4),   #(32,64)
+        nn.BatchNorm1d(hidden*4),
+        nn.PReLU(),
+        #nn.Dropout(0.3),
+        nn.Linear(hidden*4,hidden*2),   #(32,64)
         nn.BatchNorm1d(hidden*2),
-        nn.ELU(),
+        nn.PReLU(),
         #nn.Dropout(0.3),     
         #nn.Dropout(0.3),
         nn.Linear(hidden*2,output),        #(128,1)
@@ -83,31 +83,30 @@ class RestNN(nn.Module):
   def __init__(self, input:int=26, output:int=1, hidden:int=64):
     super().__init__()
     self.linear_stack = nn.Sequential(
-      nn.Linear(input,hidden),      #(18,32)
-      nn.BatchNorm1d(hidden),
-      nn.ELU(),
-      #nn.Dropout(0.3),
-      nn.Linear(hidden,hidden*2),   #(32,64)
-      nn.BatchNorm1d(hidden*2),
-      nn.ELU(),
-      #nn.Dropout(0.3),
-      nn.Linear(hidden*2,hidden*2),   #(32,64)
-      nn.BatchNorm1d(hidden*2),
-      nn.ELU(),
-      #nn.Dropout(0.3),     
-      #nn.Dropout(0.3),
-      nn.Linear(hidden*2,input),        #(128,1)
-      nn.ELU()
-      )
+        nn.Linear(input,hidden*2),      #(18,32)
+        nn.BatchNorm1d(hidden*2),
+        nn.PReLU(),
+        #nn.Dropout(0.3),
+        nn.Linear(hidden*2,hidden*4),   #(32,64)
+        nn.BatchNorm1d(hidden*4),
+        nn.PReLU(),
+        #nn.Dropout(0.3),
+        nn.Linear(hidden*4,hidden*2),   #(32,64)
+        nn.BatchNorm1d(hidden*2),
+        nn.PReLU(),
+        #nn.Dropout(0.3),     
+        #nn.Dropout(0.3),
+        nn.Linear(hidden*2,input),        #(128,1)
+        )
     self.res_stack = nn.Sequential(
       nn.Linear(input,hidden),
       nn.BatchNorm1d(hidden),
-      nn.ELU(),
+      nn.PReLU(),
       nn.Linear(hidden,hidden*2),
       nn.BatchNorm1d(hidden*2),
-      nn.ELU(),
+      nn.PReLU(),
       nn.Linear(hidden*2,input),
-      nn.ELU()
+      nn.PReLU()
     )
     self.fc_layer = nn.Sequential(
       nn.Linear(input,output)

@@ -187,7 +187,7 @@ def main(args):
         print('Task{} {}!'.format(i+1,net))
         early_stopper = EarlyStopper(train_params.get("patience") ,train_params.get("min_delta"))
         optim = torch.optim.AdamW(nets[net].parameters(), lr=train_params.get('optim_params').get('lr'))
-        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.0000001)
+        scheduler = CosineAnnealingWarmRestarts(optim, T_0=20, T_mult=1, eta_min=0.00000001)
         if train_params.get("pbar"):
             pbar = tqdm(pbar)
         for _ in pbar:

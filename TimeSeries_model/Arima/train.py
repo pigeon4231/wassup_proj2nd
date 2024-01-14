@@ -28,8 +28,8 @@ arimax_cons = ARIMA(trn_cons ,order=(26, 0, 0),).fit()
 print('learning end!')
 
 # model save
-arimax_prod.save('arima_prod_{}.pkl'.format(name))
-arimax_cons.save('arima_cons_{}.pkl'.format(name))
+#arimax_prod.save('arima_prod_{}.pkl'.format(name))
+#arimax_cons.save('arima_cons_{}.pkl'.format(name))
 
 # prediction using model maked
 pred_prod = arimax_prod.predict(
