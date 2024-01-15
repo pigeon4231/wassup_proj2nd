@@ -5,7 +5,7 @@ config = {
         "data_test":"../data/test.csv",
         "output": "./submit/model_",
         "submission":"./submit/submission_",
-        "name": "100epoch_256hiddendim_prelu"
+        "name": "1"
     },
     "model_params": {
         "tst_size" : 96,
@@ -23,7 +23,7 @@ config = {
         },
         "optim_params": {"lr": 0.0001},   #0.0000001
         "device": "cuda",
-        "epochs": 100,
+        "epochs": 1,
         "pbar": True,
         "min_delta": 0,
         "patience": 5,
@@ -32,7 +32,7 @@ config = {
     "train": True,
     "validation": False,
     "scheduler": True, 
-    "nomal": True,
+    "nomal": False,
     "multi": False,
     "resnet": True
 }

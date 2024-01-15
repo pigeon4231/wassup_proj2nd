@@ -42,7 +42,10 @@ class PatchSRT(nn.Module):
         self.activation = nn.PReLU()
         self.res_layer_1 = nn.Linear(input_dim, model_dim*2)
         self.res_layer_2 = nn.Linear(model_dim*2, model_dim*2)
-        self.fc_layer = nn.Linear(model_dim*2*n_token, output_dim)
+        self.res_layer_3 = nn.Linear(model_dim*2, input_dim)
+        # # fully connected layer block
+        self.res_layer_4 = nn.Linear(input_dim, input_dim)
+        self.fc_layer = nn.Linear(input_dim*n_token, output_dim)
 
     def forward(self, x):
         # x shape: (batch_size, n_token, token_size)
@@ -54,6 +57,10 @@ class PatchSRT(nn.Module):
         x = self.activation(x)
         x = self.res_layer_2(x)
         x = self.activation(x)
+        x = self.res_layer_3(x)
+        x = self.activation(x)
+        # fully connected layer block
+        x = self.res_layer_4(x_+x) 
         x = x.view(x.size(0), -1) # (batch_size, n_token * model_dim)
         x = self.fc_layer(x)
         return x
